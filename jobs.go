@@ -11,9 +11,7 @@ import (
 	"sync"
 
 	ct "github.com/flynn/flynn-controller/types"
-	"github.com/flynn/flynn-controller/utils"
 	"github.com/flynn/flynn-host/types"
-	"github.com/flynn/go-dockerclient"
 	"github.com/flynn/go-flynn/cluster"
 	"github.com/flynn/go-flynn/demultiplex"
 	"github.com/flynn/go-sql"
@@ -219,38 +217,31 @@ func runJob(app *ct.App, newJob ct.NewJob, releases *ReleaseRepo, artifacts *Art
 		return
 	}
 	artifact := data.(*ct.Artifact)
-	image, err := utils.DockerImage(artifact.URI)
-	if err != nil {
-		log.Println("error parsing artifact uri", err)
-		r.Error(ct.ValidationError{
-			Field:   "artifact.uri",
-			Message: "is invalid",
-		})
-		return
-	}
 	attach := strings.Contains(req.Header.Get("Accept"), "application/vnd.flynn.attach")
 
+	env := make(map[string]string, len(release.Env)+len(newJob.Env))
+	for k, v := range release.Env {
+		env[k] = v
+	}
+	for k, v := range newJob.Env {
+		env[k] = v
+	}
 	job := &host.Job{
 		ID: cluster.RandomJobID(""),
-		Attributes: map[string]string{
+		Metadata: map[string]string{
 			"flynn-controller.app":     app.ID,
 			"flynn-controller.release": release.ID,
 		},
-		Config: &docker.Config{
-			Cmd:          newJob.Cmd,
-			Env:          utils.FormatEnv(release.Env, newJob.Env),
-			Image:        image,
-			AttachStdout: true,
-			AttachStderr: true,
+		Artifact: host.Artifact{
+			Type: artifact.Type,
+			URI:  artifact.URI,
 		},
-	}
-	if newJob.TTY {
-		job.Config.Tty = true
-	}
-	if attach {
-		job.Config.AttachStdin = true
-		job.Config.StdinOnce = true
-		job.Config.OpenStdin = true
+		Config: host.ContainerConfig{
+			Cmd:   newJob.Cmd,
+			Env:   env,
+			TTY:   newJob.TTY,
+			Stdin: attach,
+		},
 	}
 
 	hosts, err := cl.ListHosts()

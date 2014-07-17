@@ -33,8 +33,13 @@ type Release struct {
 type ProcessType struct {
 	Cmd   []string          `json:"cmd,omitempty"`
 	Env   map[string]string `json:"env,omitempty"`
-	Ports ProcessPorts      `json:"ports,omitempty"`
+	Ports []Port            `json:"ports,omitempty"`
 	Data  bool              `json:"data,omitempty"`
+}
+
+type Port struct {
+	Port  int    `json:"port"`
+	Proto string `json:"proto"`
 }
 
 type ProcessPorts struct {
